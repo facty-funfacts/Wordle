@@ -4,240 +4,277 @@
 <meta charset="UTF-8">
 <title>Abandoned Factory Shooter</title>
 <style>
-  body { margin:0; background:#111; color:white; font-family:Arial; text-align:center;}
-  canvas { display:block; margin:0 auto; background:#222;}
-  #ui { margin:10px; font-size:18px;}
+body { margin:0; background:#111; color:white; font-family:Arial; text-align:center;}
+canvas { display:block; margin:0 auto; background:#222;}
+#ui { margin:10px; font-size:18px;}
+button { margin:5px; padding:10px 20px; font-size:16px;}
 </style>
 </head>
 <body>
 <h1>Abandoned Factory Shooter</h1>
-<div id="ui">HP: <span id="hp">100</span> | Score: <span id="score">0</span> | Wave: <span id="wave">1</span> | Coins: <span id="coins">0</span></div>
+<div id="ui">
+  HP: <span id="hp">100</span> | Score: <span id="score">0</span> | Wave: <span id="wave">1</span> | Coins: <span id="coins">0</span>
+</div>
 <canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="menu"></div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// ========== PLAYER ==========
+// ===== GAME STATE =====
+let gameState = "playing"; // "playing", "gameover", "shop"
+
+// ===== PLAYER =====
 let player = {
-  x:400, y:400, width:30, height:30, speed:4, hp:100,
-  lastShot:0, shootDir:{x:0,y:-1}
+  x:400, y:400, w:30, h:30, speed:4, hp:100, maxHp:100,
+  lastShot:0, shootDir:{x:0,y:0}, skin:"lime"
 };
 
-// ========== CONTROLS ==========
+// ===== CONTROLS =====
 let keys = {};
 document.addEventListener("keydown", e=>{ keys[e.key]=true; updateShootDir(e.key,true); });
 document.addEventListener("keyup", e=>{ keys[e.key]=false; });
 
-// Shoot direction mapping (arrows)
+// WASD shooting
 function updateShootDir(key, down){
-  if(down){
-    if(key=="ArrowUp") player.shootDir={x:0,y:-1};
-    if(key=="ArrowDown") player.shootDir={x:0,y:1};
-    if(key=="ArrowLeft") player.shootDir={x:-1,y:0};
-    if(key=="ArrowRight") player.shootDir={x:1,y:0};
-  }
+  if(!down) return;
+  if(key=="w") player.shootDir={x:0,y:-1};
+  if(key=="s") player.shootDir={x:0,y:1};
+  if(key=="a") player.shootDir={x:-1,y:0};
+  if(key=="d") player.shootDir={x:1,y:0};
 }
 
-// ========== BULLETS ==========
+// ===== BULLETS =====
 let bullets = [];
 let enemyBullets = [];
 
-// ========== COINS ==========
+// ===== COINS =====
 let coins = 0;
 
-// ========== SCORE ==========
+// ===== SCORE =====
 let score = 0;
 
-// ========== WAVES ==========
+// ===== WAVES =====
 let wave = 1;
 let enemies = [];
 let spawnTimer = 0;
 
-// ========== OBSTACLES ==========
+// ===== OBSTACLES =====
 let obstacles = [
-  {x:200,y:150,width:100,height:20},
-  {x:500,y:300,width:150,height:20},
-  {x:300,y:400,width:20,height:80},
-  {x:600,y:100,width:20,height:100},
+  {x:100,y:100,w:150,h:20},
+  {x:300,y:200,w:20,h:120},
+  {x:500,y:50,w:20,h:200},
+  {x:600,y:350,w:150,h:20},
+  {x:200,y:400,w:120,h:20}
 ];
 
-// ========== ENEMY TYPES ==========
+// ===== ENEMY TYPES =====
 const enemyTypes = {
-  basic: {hp:20,speed:1.5,shootInterval:2000,points:1},
-  fast: {hp:10,speed:3,shootInterval:2500,points:3},
-  tank: {hp:40,speed:1,shootInterval:1500,points:5},
-  boss: {hp:100,speed:1.2,shootInterval:1000,points:20}
+  basic:{hp:20,speed:1.5,shootInterval:3000,points:1,color:"red"},
+  fast:{hp:10,speed:3,shootInterval:4000,points:3,color:"cyan"},
+  tank:{hp:40,speed:1,shootInterval:2000,points:5,color:"magenta"},
+  boss:{hp:100,speed:1.2,shootInterval:1000,points:20,color:"purple"}
 };
 
-// ========== SPAWN ENEMY ==========
+// ===== SPAWN ENEMY =====
 function spawnEnemy(type){
-  let size = 30;
-  let x = Math.random()*(canvas.width-size);
-  let y = -size;
-  enemies.push({
-    x,y,width:size,height:size,
-    type:type,hp:enemyTypes[type].hp,
-    speed:enemyTypes[type].speed,
-    lastShot:0
-  });
+  let size=30;
+  let x=Math.random()*(canvas.width-size);
+  let y=-size;
+  enemies.push({x,y,w:size,h:size,type,typeInfo:enemyTypes[type],hp:enemyTypes[type].hp,lastShot:0});
 }
 
-// ========== SPAWN WAVE ==========
-function spawnWave(numBasic,numFast,numTank,boss=false){
-  for(let i=0;i<numBasic;i++) spawnEnemy("basic");
-  for(let i=0;i<numFast;i++) spawnEnemy("fast");
-  for(let i=0;i<numTank;i++) spawnEnemy("tank");
+// ===== SPAWN WAVE =====
+function spawnWave(){
+  let basic=wave+2, fast=Math.floor(wave/2), tank=Math.floor(wave/3);
+  let boss=(wave%5==0)?1:0;
+  for(let i=0;i<basic;i++) spawnEnemy("basic");
+  for(let i=0;i<fast;i++) spawnEnemy("fast");
+  for(let i=0;i<tank;i++) spawnEnemy("tank");
   if(boss) spawnEnemy("boss");
 }
 
-// ========== GAME LOOP ==========
+// ===== GAME LOOP =====
 function gameLoop(){
-  // ----- MOVE PLAYER -----
+  if(gameState!="playing") return;
+
+  // ---- MOVE PLAYER ----
   if(keys["ArrowUp"]) player.y -= player.speed;
   if(keys["ArrowDown"]) player.y += player.speed;
   if(keys["ArrowLeft"]) player.x -= player.speed;
   if(keys["ArrowRight"]) player.x += player.speed;
 
   // Player stays inside canvas
-  player.x = Math.max(0,Math.min(canvas.width-player.width,player.x));
-  player.y = Math.max(0,Math.min(canvas.height-player.height,player.y));
+  player.x = Math.max(0,Math.min(canvas.width-player.w,player.x));
+  player.y = Math.max(0,Math.min(canvas.height-player.h,player.y));
 
-  // ----- SHOOT PLAYER BULLETS -----
-  if(keys[" "]) shootPlayer();
+  // ---- SHOOT PLAYER ----
+  if(player.shootDir.x!=0 || player.shootDir.y!=0) shootPlayer();
 
-  // ----- SPAWN ENEMIES -----
+  // ---- SPAWN ENEMIES ----
   spawnTimer++;
   if(spawnTimer>200){
-    // Every wave increases enemies slightly
-    let basic = wave+2, fast=Math.floor(wave/2), tank=Math.floor(wave/3), boss=false;
-    if(wave%5==0) boss=true;
-    spawnWave(basic,fast,tank,boss);
+    spawnWave();
     spawnTimer=0;
   }
 
-  // ----- UPDATE BULLETS -----
+  // ---- UPDATE BULLETS ----
   bullets.forEach((b,i)=>{
-    b.x += b.vx;
-    b.y += b.vy;
-    // Remove out of bounds
-    if(b.x<0 || b.x>canvas.width || b.y<0 || b.y>canvas.height) bullets.splice(i,1);
+    b.x += b.vx; b.y += b.vy;
+    if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) bullets.splice(i,1);
   });
-
   enemyBullets.forEach((b,i)=>{
-    b.x += b.vx;
-    b.y += b.vy;
-    if(b.x<0 || b.x>canvas.width || b.y<0 || b.y>canvas.height) enemyBullets.splice(i,1);
+    b.x += b.vx; b.y += b.vy;
+    if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) enemyBullets.splice(i,1);
   });
 
-  // ----- UPDATE ENEMIES -----
+  // ---- UPDATE ENEMIES ----
   enemies.forEach((e,ei)=>{
-    // Move toward player
-    let dx = player.x - e.x;
-    let dy = player.y - e.y;
+    let dx = (player.x+player.w/2)-(e.x+e.w/2);
+    let dy = (player.y+player.h/2)-(e.y+e.h/2);
     let dist = Math.hypot(dx,dy);
-    e.x += (dx/dist)*e.speed;
-    e.y += (dy/dist)*e.speed;
+    e.x += (dx/dist)*e.typeInfo.speed;
+    e.y += (dy/dist)*e.typeInfo.speed;
 
-    // Enemy shooting
-    if(!e.lastShot || Date.now()-e.lastShot>enemyTypes[e.type].shootInterval){
-      let dx = (player.x+player.width/2) - (e.x+e.width/2);
-      let dy = (player.y+player.height/2) - (e.y+e.height/2);
-      let mag = Math.hypot(dx,dy);
-      enemyBullets.push({x:e.x+e.width/2-5,y:e.y+e.height/2-5,width:10,height:10,vx:dx/mag*4,vy:dy/mag*4});
-      e.lastShot = Date.now();
+    // Enemy shoot
+    if(!e.lastShot || Date.now()-e.lastShot>e.typeInfo.shootInterval){
+      let dxp=(player.x+player.w/2)-(e.x+e.w/2);
+      let dyp=(player.y+player.h/2)-(e.y+e.h/2);
+      let mag=Math.hypot(dxp,dyp);
+      enemyBullets.push({x:e.x+e.w/2-5,y:e.y+e.h/2-5,w:10,h:10,vx:dxp/mag*4,vy:dyp/mag*4});
+      e.lastShot=Date.now();
     }
 
     // Collision with player bullets
     bullets.forEach((b,bi)=>{
-      if(b.x<b.x+player.width && b.x+b.width>e.x && b.y<b.y+player.height && b.y+b.height>e.y){
-        e.hp -= 10;
+      if(b.x<b.x+b.w && b.x+b.w>e.x && b.y<b.y+b.h && b.y+b.h>e.y){
+        e.hp-=10;
         bullets.splice(bi,1);
         if(e.hp<=0){
-          // drop coin
-          coins += Math.floor(Math.random()*3+1);
-          score += enemyTypes[e.type].points;
+          coins+=1;
+          score+=e.typeInfo.points;
           enemies.splice(ei,1);
         }
       }
     });
 
     // Collision with player
-    if(player.x < e.x+e.width && player.x+player.width > e.x &&
-       player.y < e.y+e.height && player.y+player.height > e.y){
-      player.hp -= 20;
-      document.getElementById("hp").innerText = player.hp;
+    if(player.x<e.x+e.w && player.x+player.w>e.x &&
+       player.y<e.y+e.h && player.y+player.h>e.y){
+      player.hp-=20;
+      document.getElementById("hp").innerText=player.hp;
       enemies.splice(ei,1);
     }
   });
 
-  // ----- COLLISION ENEMY BULLETS -----
+  // ---- COLLISION ENEMY BULLETS ----
   enemyBullets.forEach((b,bi)=>{
-    if(player.x < b.x+b.width && player.x+player.width > b.x &&
-       player.y < b.y+b.height && player.y+player.height > b.y){
-      player.hp -= 10;
-      document.getElementById("hp").innerText = player.hp;
+    if(player.x<b.x+b.w && player.x+player.w>b.x &&
+       player.y<b.y+b.h && player.y+player.h>b.y){
+      player.hp-=10;
+      document.getElementById("hp").innerText=player.hp;
       enemyBullets.splice(bi,1);
     }
   });
 
-  // ----- CHECK GAME OVER -----
-  if(player.hp <=0){
-    alert("Game Over! Score: "+score+" | Coins: "+coins+" | Wave: "+wave);
-    location.reload();
+  // ---- CHECK GAME OVER ----
+  if(player.hp<=0){
+    gameState="gameover";
+    showGameOver();
+    return;
   }
 
-  // ----- UPDATE UI -----
-  document.getElementById("score").innerText = score;
-  document.getElementById("coins").innerText = coins;
-  document.getElementById("wave").innerText = wave;
+  // ---- UPDATE UI ----
+  document.getElementById("score").innerText=score;
+  document.getElementById("coins").innerText=coins;
+  document.getElementById("wave").innerText=wave;
 
-  // ----- DRAW -----
+  // ---- DRAW ----
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
   // Obstacles
   ctx.fillStyle="#555";
-  obstacles.forEach(o=> ctx.fillRect(o.x,o.y,o.width,o.height));
+  obstacles.forEach(o=> ctx.fillRect(o.x,o.y,o.w,o.h));
 
   // Player
-  ctx.fillStyle="lime";
-  ctx.fillRect(player.x,player.y,player.width,player.height);
+  ctx.fillStyle=player.skin;
+  ctx.fillRect(player.x,player.y,player.w,player.h);
 
   // Bullets
   ctx.fillStyle="yellow";
-  bullets.forEach(b=> ctx.fillRect(b.x,b.y,b.width,b.height));
+  bullets.forEach(b=> ctx.fillRect(b.x,b.y,b.w,b.h));
 
   // Enemy bullets
   ctx.fillStyle="orange";
-  enemyBullets.forEach(b=> ctx.fillRect(b.x,b.y,b.width,b.height));
+  enemyBullets.forEach(b=> ctx.fillRect(b.x,b.y,b.w,b.h));
 
   // Enemies
   enemies.forEach(e=>{
-    if(e.type=="basic") ctx.fillStyle="red";
-    else if(e.type=="fast") ctx.fillStyle="cyan";
-    else if(e.type=="tank") ctx.fillStyle="magenta";
-    else ctx.fillStyle="purple"; // boss
-    ctx.fillRect(e.x,e.y,e.width,e.height);
+    ctx.fillStyle=e.typeInfo.color;
+    ctx.fillRect(e.x,e.y,e.w,e.h);
   });
 
   requestAnimationFrame(gameLoop);
 }
 
-// ========== PLAYER SHOOT FUNCTION ==========
+// ===== PLAYER SHOOT =====
 function shootPlayer(){
   if(!player.lastShot || Date.now()-player.lastShot>300){
-    bullets.push({
-      x:player.x+player.width/2-5,
-      y:player.y+player.height/2-5,
-      width:10,height:10,
-      vx:player.shootDir.x*7,
-      vy:player.shootDir.y*7
-    });
-    player.lastShot = Date.now();
+    bullets.push({x:player.x+player.w/2-5,y:player.y+player.h/2-5,w:10,h:10,vx:player.shootDir.x*7,vy:player.shootDir.y*7});
+    player.lastShot=Date.now();
   }
 }
 
-// Start game
+// ===== GAME OVER =====
+function showGameOver(){
+  const menu=document.getElementById("menu");
+  menu.innerHTML=`<h2>GAME OVER</h2>
+  <p>Score: ${score} | Coins: ${coins} | Wave: ${wave}</p>
+  <button onclick="restartGame()">Restart</button>
+  <button onclick="openShop()">Shop</button>`;
+}
+
+// ===== RESTART GAME =====
+function restartGame(){
+  player.hp=player.maxHp;
+  document.getElementById("hp").innerText=player.hp;
+  bullets=[]; enemyBullets=[]; enemies=[];
+  wave=1; spawnTimer=0; score=0;
+  gameState="playing";
+  document.getElementById("menu").innerHTML="";
+  gameLoop();
+}
+
+// ===== SHOP =====
+let shopSkins=["lime","blue","red","pink","gold"];
+function openShop(){
+  gameState="shop";
+  const menu=document.getElementById("menu");
+  let html="<h2>SHOP</h2><p>Coins: "+coins+"</p>";
+  shopSkins.forEach(skin=>{
+    html+=`<button onclick="buySkin('${skin}')">${skin} skin - 50 coins</button>`;
+  });
+  html+=`<button onclick="closeShop()">Back</button>`;
+  menu.innerHTML=html;
+}
+
+function buySkin(skin){
+  if(coins>=50){
+    coins-=50;
+    player.skin=skin;
+    document.getElementById("coins").innerText=coins;
+    alert("Skin purchased!");
+  }else alert("Not enough coins!");
+}
+
+function closeShop(){
+  document.getElementById("menu").innerHTML="";
+  gameState="playing";
+  gameLoop();
+}
+
+// ===== START =====
 gameLoop();
 </script>
 </body>
