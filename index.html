@@ -140,6 +140,202 @@ function restartGame(){
   gameLoop();
 }
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ultimate Player Skins</title>
+<style>
+body{margin:0; background:#111; color:white; font-family:Arial; text-align:center;}
+canvas{display:block; margin:0 auto; background:#222;}
+button{margin:5px;padding:10px 20px;font-size:16px;}
+#ui{margin:10px;}
+</style>
+</head>
+<body>
+<h1>Ultimate Circular Face Skins Demo</h1>
+<div id="ui">HP: <span id="hp">100</span> | Coins: <span id="coins">100</span></div>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="menu"></div>
+
+<script>
+// =================== GAME VARIABLES ===================
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let coins = 100;
+let hp = 100;
+
+let player = {
+  x: 400, y: 250, diameter: 40, skin: "lime", health: hp
+};
+
+let skins = {
+  lime:{body:"#32CD32",eye:"#FFFFFF",pupil:"#000000",diameter:40,detail:"default"},
+  blue:{body:"#1E90FF",eye:"#FFFF00",pupil:"#000000",diameter:38,detail:"default"},
+  red:{body:"#FF4500",eye:"#FFFFFF",pupil:"#000000",diameter:42,detail:"scar"},
+  pink:{body:"#FF69B4",eye:"#FFFFFF",pupil:"#000000",diameter:40,detail:"blush"},
+  gold:{body:"#FFD700",eye:"#000000",pupil:"#FFFFFF",diameter:41,detail:"freckles"}
+};
+
+let shopSkins = ["lime","blue","red","pink","gold"];
+let unlockedSkins = ["lime"]; // start with lime unlocked
+
+// Animation timers
+let blinkTimer = 0;
+let blinkState = false;
+
+// =================== DRAW PLAYER SKIN ===================
+function drawPlayerSkin(player){
+  let skin = skins[player.skin];
+  let cx = player.x;
+  let cy = player.y;
+  let d = skin.diameter;
+
+  // Face (circular body)
+  ctx.beginPath();
+  ctx.arc(cx, cy, d/2, 0, Math.PI*2);
+  ctx.fillStyle = skin.body;
+  ctx.fill();
+  ctx.closePath();
+
+  // Optional detail marks
+  if(skin.detail=="scar"){
+    ctx.strokeStyle="#FF0000";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-d/6, cy-d/6);
+    ctx.lineTo(cx+d/6, cy+d/6);
+    ctx.stroke();
+    ctx.closePath();
+  }
+  if(skin.detail=="blush"){
+    ctx.fillStyle="#FFB6C1";
+    ctx.beginPath();
+    ctx.arc(cx-d/5, cy+d/8, 4, 0, Math.PI*2);
+    ctx.arc(cx+d/5, cy+d/8, 4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.closePath();
+  }
+  if(skin.detail=="freckles"){
+    ctx.fillStyle="#8B4513";
+    for(let i=0;i<5;i++){
+      let fx = cx + (Math.random()-0.5)*d/2;
+      let fy = cy + (Math.random()-0.5)*d/2;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.closePath();
+    }
+  }
+
+  // Blinking logic
+  blinkTimer++;
+  if(blinkTimer>150){blinkState=!blinkState; blinkTimer=0;}
+
+  // Eyes
+  let eyeOffsetX = d/4;
+  let eyeOffsetY = -d/8;
+  let eyeRadius = d/8;
+
+  // Left eye
+  ctx.beginPath();
+  ctx.arc(cx-eyeOffsetX, cy+eyeOffsetY, eyeRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.eye;
+  ctx.fill();
+  ctx.closePath();
+
+  // Right eye
+  ctx.beginPath();
+  ctx.arc(cx+eyeOffsetX, cy+eyeOffsetY, eyeRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.eye;
+  ctx.fill();
+  ctx.closePath();
+
+  // Pupils
+  let pupilRadius = eyeRadius/2;
+  if(!blinkState){
+    ctx.beginPath();
+    ctx.arc(cx-eyeOffsetX, cy+eyeOffsetY, pupilRadius, 0, Math.PI*2);
+    ctx.fillStyle = skin.pupil;
+    ctx.fill();
+    ctx.closePath();
+
+    ctx.beginPath();
+    ctx.arc(cx+eyeOffsetX, cy+eyeOffsetY, pupilRadius, 0, Math.PI*2);
+    ctx.fillStyle = skin.pupil;
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  // Smile/frown based on health
+  ctx.beginPath();
+  ctx.strokeStyle="#000000";
+  ctx.lineWidth=2;
+  let smileRadius = d/4;
+  if(player.health>=50){
+    ctx.arc(cx, cy+d/8, smileRadius, Math.PI/8, Math.PI-Math.PI/8, false); // smile
+  } else {
+    ctx.arc(cx, cy+d/4, smileRadius, Math.PI+Math.PI/8, 2*Math.PI-Math.PI/8, false); // frown
+  }
+  ctx.stroke();
+  ctx.closePath();
+}
+
+// =================== SHOP ===================
+function openShop(){
+  const menu = document.getElementById("menu");
+  let html = `<h2>SHOP</h2><p>Coins: ${coins}</p>`;
+  shopSkins.forEach(skin=>{
+    html += `<button onclick="buySkin('${skin}')">${skin} skin - 50 coins</button>`;
+  });
+  html += `<button onclick="closeShop()">Back</button>`;
+  menu.innerHTML = html;
+}
+function buySkin(skin){
+  if(unlockedSkins.includes(skin)){alert("Already unlocked!"); return;}
+  if(coins>=50){coins-=50; unlockedSkins.push(skin); player.skin=skin; updateUI(); alert("Skin purchased!");}
+  else alert("Not enough coins!");
+}
+function closeShop(){document.getElementById("menu").innerHTML="";}
+
+// =================== UI UPDATE ===================
+function updateUI(){
+  document.getElementById("coins").innerText = coins;
+  document.getElementById("hp").innerText = player.health;
+}
+
+// =================== INPUT ===================
+document.addEventListener("keydown",e=>{
+  if(e.key=="s") openShop();
+  if(e.key=="1" && unlockedSkins.includes("lime")) player.skin="lime";
+  if(e.key=="2" && unlockedSkins.includes("blue")) player.skin="blue";
+  if(e.key=="3" && unlockedSkins.includes("red")) player.skin="red";
+  if(e.key=="4" && unlockedSkins.includes("pink")) player.skin="pink";
+  if(e.key=="5" && unlockedSkins.includes("gold")) player.skin="gold";
+});
+
+// =================== GAME LOOP ===================
+function gameLoop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawPlayerSkin(player);
+  updateUI();
+  requestAnimationFrame(gameLoop);
+}
+
+// =================== START ===================
+gameLoop();
+
+// =================== SIMULATE HEALTH CHANGES ===================
+setInterval(()=>{
+  player.health -= 1;
+  if(player.health<0) player.health=100;
+}, 500);
+
+</script>
+</body>
+</html>
+  
 // ===== SHOP =====
 let shopSkins=["Lime","Blue","Red","Pink","Gold"];
 function openShop(){
