@@ -60,14 +60,58 @@ let wave = 1;
 let enemies = [];
 let spawnTimer = 0;
 
-// ===== OBSTACLES =====
-let obstacles = [
-  {x:100,y:100,w:150,h:20},
-  {x:300,y:200,w:20,h:120},
-  {x:500,y:50,w:20,h:200},
-  {x:600,y:350,w:150,h:20},
-  {x:200,y:400,w:120,h:20}
-];
+// ===== MAP LAYOUT =====
+let map = {
+  width: 1600, // twice canvas width
+  height: 1000, // twice canvas height
+  floorColor: "#A1866F", // beige/brown rusty floor
+  obstacles:[
+    // Walls (visual only)
+    {x:0,y:0,w:1600,h:20,color:"#555"},       // top wall
+    {x:0,y:980,w:1600,h:20,color:"#555"},     // bottom wall
+    {x:0,y:0,w:20,h:1000,color:"#555"},       // left wall
+    {x:1580,y:0,w:20,h:1000,color:"#555"},    // right wall
+
+    // Pipes
+    {x:200,y:100,w:20,h:150,color:"#4CAF50"},
+    {x:400,y:250,w:150,h:20,color:"#4CAF50"},
+    {x:600,y:400,w:20,h:200,color:"#4CAF50"},
+    {x:1000,y:150,w:20,h:300,color:"#4CAF50"},
+    {x:1300,y:500,w:250,h:20,color:"#4CAF50"},
+
+    // Crates
+    {x:300,y:600,w:60,h:60,color:"#8B5A2B"},
+    {x:700,y:700,w:80,h:80,color:"#8B5A2B"},
+    {x:1200,y:300,w:50,h:50,color:"#8B5A2B"},
+    {x:1400,y:150,w:70,h:70,color:"#8B5A2B"},
+
+    // Barrels / machinery
+    {x:500,y:100,w:40,h:40,color:"#6B3E26"},
+    {x:800,y:250,w:40,h:40,color:"#6B3E26"},
+    {x:1100,y:600,w:50,h:50,color:"#6B3E26"},
+    {x:1500,y:800,w:60,h:60,color:"#6B3E26"},
+
+    // Random scattered debris for realism
+    {x:200,y:800,w:30,h:30,color:"#666"},
+    {x:900,y:450,w:30,h:30,color:"#666"},
+    {x:1300,y:700,w:40,h:40,color:"#666"},
+    {x:1400,y:900,w:50,h:50,color:"#666"}
+  ]
+};
+
+// ===== DRAW MAP FUNCTION =====
+function drawMap(ctx){
+  // Floor
+  ctx.fillStyle = map.floorColor;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Obstacles
+  map.obstacles.forEach(o=>{
+    ctx.fillStyle=o.color;
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+  });
+}
+
 
 // ===== ENEMY TYPES =====
 const enemyTypes = {
