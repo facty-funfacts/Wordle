@@ -58,9 +58,109 @@ let map = {
   ]
 };
 
-// ===== PLAYER =====
-let player = {x:400,y:400,w:30,h:30,speed:4,hp:100,maxHp:100,lastShot:0,shootDir:{x:0,y:0},skin:"lime"};
+function drawPlayerSkin(player){
+  let skin = skins[player.skin];
+  let cx = player.x;
+  let cy = player.y;
+  let d = skin.diameter;
 
+  // Face
+  ctx.beginPath();
+  ctx.arc(cx, cy, d/2, 0, Math.PI*2);
+  ctx.fillStyle = skin.body;
+  ctx.fill();
+  ctx.closePath();
+
+  // Optional details
+  if(skin.detail=="scar"){
+    ctx.strokeStyle="#FF0000";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-d/6, cy-d/6);
+    ctx.lineTo(cx+d/6, cy+d/6);
+    ctx.stroke();
+    ctx.closePath();
+  }
+  if(skin.detail=="blush"){
+    ctx.fillStyle="#FFB6C1";
+    ctx.beginPath();
+    ctx.arc(cx-d/5, cy+d/8, 4, 0, Math.PI*2);
+    ctx.arc(cx+d/5, cy+d/8, 4, 0, Math.PI*2);
+    ctx.fill();
+    ctx.closePath();
+  }
+  if(skin.detail=="freckles"){
+    ctx.fillStyle="#8B4513";
+    for(let i=0;i<5;i++){
+      let fx = cx + (Math.random()-0.5)*d/2;
+      let fy = cy + (Math.random()-0.5)*d/2;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.closePath();
+    }
+  }
+
+  // Eyes
+  let eyeOffsetX = d/4;
+  let eyeOffsetY = -d/8;
+  let eyeRadius = d/8;
+  ctx.beginPath();
+  ctx.arc(cx-eyeOffsetX, cy+eyeOffsetY, eyeRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.eye;
+  ctx.fill();
+  ctx.closePath();
+  ctx.beginPath();
+  ctx.arc(cx+eyeOffsetX, cy+eyeOffsetY, eyeRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.eye;
+  ctx.fill();
+  ctx.closePath();
+
+  // Pupils
+  let pupilRadius = eyeRadius/2;
+  ctx.beginPath();
+  ctx.arc(cx-eyeOffsetX, cy+eyeOffsetY, pupilRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.pupil;
+  ctx.fill();
+  ctx.closePath();
+  ctx.beginPath();
+  ctx.arc(cx+eyeOffsetX, cy+eyeOffsetY, pupilRadius, 0, Math.PI*2);
+  ctx.fillStyle = skin.pupil;
+  ctx.fill();
+  ctx.closePath();
+
+  // Smile / Frown
+  ctx.beginPath();
+  ctx.strokeStyle="#000000";
+  ctx.lineWidth=2;
+  let smileRadius = d/4;
+  if(player.health>=50){
+    ctx.arc(cx, cy+d/8, smileRadius, Math.PI/8, Math.PI-Math.PI/8, false); // smile
+  } else {
+    ctx.arc(cx, cy+d/4, smileRadius, Math.PI+Math.PI/8, 2*Math.PI-Math.PI/8, false); // frown
+  }
+  ctx.stroke();
+  ctx.closePath();
+}
+  
+let player = { 
+  x: 400, 
+  y: 400, 
+  skin: "lime", 
+  health: 100 
+};
+  
+let skins = {
+  lime:{body:"#32CD32",eye:"#FFFFFF",pupil:"#000000",diameter:40,detail:"default"},
+  blue:{body:"#1E90FF",eye:"#FFFF00",pupil:"#000000",diameter:38,detail:"default"},
+  red:{body:"#FF4500",eye:"#FFFFFF",pupil:"#000000",diameter:42,detail:"scar"},
+  pink:{body:"#FF69B4",eye:"#FFFFFF",pupil:"#000000",diameter:40,detail:"blush"},
+  gold:{body:"#FFD700",eye:"#000000",pupil:"#FFFFFF",diameter:41,detail:"freckles"}
+};
+
+let shopSkins = ["lime","blue","red","pink","gold"];
+let unlockedSkins = ["lime"]; // start with lime unlocked
+  
 // ===== CONTROLS =====
 let keys={};
 document.addEventListener("keydown",e=>{keys[e.key]=true; updateShootDir(e.key,true)});
@@ -203,19 +303,19 @@ function gameLoop(){
     });
 
     if(player.x<e.x+e.w && player.x+player.w>e.x && player.y<e.y+e.h && player.y+player.h>e.y){
-      player.hp-=20;document.getElementById("hp").innerText=player.hp;enemies.splice(ei,1);
+      player.hp-=20;document.getElementById("hp").innerText=player.health;enemies.splice(ei,1);
     }
   });
 
   // Enemy bullets hit player
   enemyBullets.forEach((b,bi)=>{
     if(player.x<b.x+b.w && player.x+player.w>b.x && player.y<b.y+b.h && player.y+player.h>b.y){
-      player.hp-=10;document.getElementById("hp").innerText=player.hp;enemyBullets.splice(bi,1);
+      player.health-=10;document.getElementById("hp").innerText=player.hp;enemyBullets.splice(bi,1);
     }
   });
 
   // Game over
-  if(player.hp<=0){showGameOver();return;}
+  if(player.health<=0){showGameOver();return;}
 
   // UI
   document.getElementById("score").innerText=score;
@@ -224,10 +324,6 @@ function gameLoop(){
 
   // Draw map + everything
   drawMap(ctx);
-
-  // Player
-  ctx.fillStyle=player.skin;
-  ctx.fillRect(player.x,player.y,player.w,player.h);
 
   // Bullets
   ctx.fillStyle="yellow"; bullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
