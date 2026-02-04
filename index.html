@@ -19,25 +19,54 @@ button { margin:5px; padding:10px 20px; font-size:16px;}
 <div id="menu"></div>
 
 <script>
+// ===== GAME STATE =====
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
-
-// ===== GAME STATE =====
 let gameState = "playing"; // "playing", "gameover", "shop"
 
-// ===== PLAYER =====
-let player = {
-  x:400, y:400, w:30, h:30, speed:4, hp:100, maxHp:100,
-  lastShot:0, shootDir:{x:0,y:0}, skin:"lime"
+// ===== HUGE MAP =====
+let map = {
+  width:1600,
+  height:1000,
+  floorColor:"#A1866F",
+  obstacles:[
+    {x:0,y:0,w:1600,h:20,color:"#555"}, // top
+    {x:0,y:980,w:1600,h:20,color:"#555"}, // bottom
+    {x:0,y:0,w:20,h:1000,color:"#555"}, // left
+    {x:1580,y:0,w:20,h:1000,color:"#555"}, // right
+    // Pipes
+    {x:200,y:100,w:20,h:150,color:"#4CAF50"},
+    {x:400,y:250,w:150,h:20,color:"#4CAF50"},
+    {x:600,y:400,w:20,h:200,color:"#4CAF50"},
+    {x:1000,y:150,w:20,h:300,color:"#4CAF50"},
+    {x:1300,y:500,w:250,h:20,color:"#4CAF50"},
+    // Crates
+    {x:300,y:600,w:60,h:60,color:"#8B5A2B"},
+    {x:700,y:700,w:80,h:80,color:"#8B5A2B"},
+    {x:1200,y:300,w:50,h:50,color:"#8B5A2B"},
+    {x:1400,y:150,w:70,h:70,color:"#8B5A2B"},
+    // Barrels
+    {x:500,y:100,w:40,h:40,color:"#6B3E26"},
+    {x:800,y:250,w:40,h:40,color:"#6B3E26"},
+    {x:1100,y:600,w:50,h:50,color:"#6B3E26"},
+    {x:1500,y:800,w:60,h:60,color:"#6B3E26"},
+    // Debris
+    {x:200,y:800,w:30,h:30,color:"#666"},
+    {x:900,y:450,w:30,h:30,color:"#666"},
+    {x:1300,y:700,w:40,h:40,color:"#666"},
+    {x:1400,y:900,w:50,h:50,color:"#666"}
+  ]
 };
 
-// ===== CONTROLS =====
-let keys = {};
-document.addEventListener("keydown", e=>{ keys[e.key]=true; updateShootDir(e.key,true); });
-document.addEventListener("keyup", e=>{ keys[e.key]=false; });
+// ===== PLAYER =====
+let player = {x:400,y:400,w:30,h:30,speed:4,hp:100,maxHp:100,lastShot:0,shootDir:{x:0,y:0},skin:"lime"};
 
-// WASD shooting
-function updateShootDir(key, down){
+// ===== CONTROLS =====
+let keys={};
+document.addEventListener("keydown",e=>{keys[e.key]=true; updateShootDir(e.key,true)});
+document.addEventListener("keyup",e=>{keys[e.key]=false;});
+
+function updateShootDir(key,down){
   if(!down) return;
   if(key=="w") player.shootDir={x:0,y:-1};
   if(key=="s") player.shootDir={x:0,y:1};
@@ -46,220 +75,40 @@ function updateShootDir(key, down){
 }
 
 // ===== BULLETS =====
-let bullets = [];
-let enemyBullets = [];
+let bullets=[],enemyBullets=[];
 
-// ===== COINS =====
-let coins = 0;
-
-// ===== SCORE =====
-let score = 0;
-
-// ===== WAVES =====
-let wave = 1;
-let enemies = [];
-let spawnTimer = 0;
-
-// ===== MAP LAYOUT =====
-let map = {
-  width: 1600, // twice canvas width
-  height: 1000, // twice canvas height
-  floorColor: "#A1866F", // beige/brown rusty floor
-  obstacles:[
-    // Walls (visual only)
-    {x:0,y:0,w:1600,h:20,color:"#555"},       // top wall
-    {x:0,y:980,w:1600,h:20,color:"#555"},     // bottom wall
-    {x:0,y:0,w:20,h:1000,color:"#555"},       // left wall
-    {x:1580,y:0,w:20,h:1000,color:"#555"},    // right wall
-
-    // Pipes
-    {x:200,y:100,w:20,h:150,color:"#4CAF50"},
-    {x:400,y:250,w:150,h:20,color:"#4CAF50"},
-    {x:600,y:400,w:20,h:200,color:"#4CAF50"},
-    {x:1000,y:150,w:20,h:300,color:"#4CAF50"},
-    {x:1300,y:500,w:250,h:20,color:"#4CAF50"},
-
-    // Crates
-    {x:300,y:600,w:60,h:60,color:"#8B5A2B"},
-    {x:700,y:700,w:80,h:80,color:"#8B5A2B"},
-    {x:1200,y:300,w:50,h:50,color:"#8B5A2B"},
-    {x:1400,y:150,w:70,h:70,color:"#8B5A2B"},
-
-    // Barrels / machinery
-    {x:500,y:100,w:40,h:40,color:"#6B3E26"},
-    {x:800,y:250,w:40,h:40,color:"#6B3E26"},
-    {x:1100,y:600,w:50,h:50,color:"#6B3E26"},
-    {x:1500,y:800,w:60,h:60,color:"#6B3E26"},
-
-    // Random scattered debris for realism
-    {x:200,y:800,w:30,h:30,color:"#666"},
-    {x:900,y:450,w:30,h:30,color:"#666"},
-    {x:1300,y:700,w:40,h:40,color:"#666"},
-    {x:1400,y:900,w:50,h:50,color:"#666"}
-  ]
-};
-
-// ===== DRAW MAP FUNCTION =====
-function drawMap(ctx){
-  // Floor
-  ctx.fillStyle = map.floorColor;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // Obstacles
-  map.obstacles.forEach(o=>{
-    ctx.fillStyle=o.color;
-    ctx.fillRect(o.x,o.y,o.w,o.h);
-  });
-}
-
+// ===== COINS / SCORE / WAVE =====
+let coins=0,score=0,wave=1,enemies=[],spawnTimer=0;
 
 // ===== ENEMY TYPES =====
-const enemyTypes = {
+const enemyTypes={
   basic:{hp:20,speed:1.5,shootInterval:3000,points:1,color:"red"},
   fast:{hp:10,speed:3,shootInterval:4000,points:3,color:"cyan"},
   tank:{hp:40,speed:1,shootInterval:2000,points:5,color:"magenta"},
   boss:{hp:100,speed:1.2,shootInterval:1000,points:20,color:"purple"}
 };
 
-// ===== SPAWN ENEMY =====
+// ===== SPAWN ENEMY / WAVE =====
 function spawnEnemy(type){
-  let size=30;
-  let x=Math.random()*(canvas.width-size);
-  let y=-size;
+  let size=30,x=Math.random()*(map.width-size),y=-size;
   enemies.push({x,y,w:size,h:size,type,typeInfo:enemyTypes[type],hp:enemyTypes[type].hp,lastShot:0});
 }
-
-// ===== SPAWN WAVE =====
 function spawnWave(){
-  let basic=wave+2, fast=Math.floor(wave/2), tank=Math.floor(wave/3);
-  let boss=(wave%5==0)?1:0;
+  let basic=wave+2,fast=Math.floor(wave/2),tank=Math.floor(wave/3),boss=(wave%5==0)?1:0;
   for(let i=0;i<basic;i++) spawnEnemy("basic");
   for(let i=0;i<fast;i++) spawnEnemy("fast");
   for(let i=0;i<tank;i++) spawnEnemy("tank");
   if(boss) spawnEnemy("boss");
 }
 
-// ===== GAME LOOP =====
-function gameLoop(){
-  if(gameState!="playing") return;
-
-  // ---- MOVE PLAYER ----
-  if(keys["ArrowUp"]) player.y -= player.speed;
-  if(keys["ArrowDown"]) player.y += player.speed;
-  if(keys["ArrowLeft"]) player.x -= player.speed;
-  if(keys["ArrowRight"]) player.x += player.speed;
-
-  // Player stays inside canvas
-  player.x = Math.max(0,Math.min(canvas.width-player.w,player.x));
-  player.y = Math.max(0,Math.min(canvas.height-player.h,player.y));
-
-  // ---- SHOOT PLAYER ----
-  if(player.shootDir.x!=0 || player.shootDir.y!=0) shootPlayer();
-
-  // ---- SPAWN ENEMIES ----
-  spawnTimer++;
-  if(spawnTimer>200){
-    spawnWave();
-    spawnTimer=0;
-  }
-
-  // ---- UPDATE BULLETS ----
-  bullets.forEach((b,i)=>{
-    b.x += b.vx; b.y += b.vy;
-    if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) bullets.splice(i,1);
+// ===== DRAW MAP =====
+function drawMap(ctx){
+  ctx.fillStyle=map.floorColor;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  map.obstacles.forEach(o=>{
+    ctx.fillStyle=o.color;
+    ctx.fillRect(o.x,o.y,o.w,o.h);
   });
-  enemyBullets.forEach((b,i)=>{
-    b.x += b.vx; b.y += b.vy;
-    if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) enemyBullets.splice(i,1);
-  });
-
-  // ---- UPDATE ENEMIES ----
-  enemies.forEach((e,ei)=>{
-    let dx = (player.x+player.w/2)-(e.x+e.w/2);
-    let dy = (player.y+player.h/2)-(e.y+e.h/2);
-    let dist = Math.hypot(dx,dy);
-    e.x += (dx/dist)*e.typeInfo.speed;
-    e.y += (dy/dist)*e.typeInfo.speed;
-
-    // Enemy shoot
-    if(!e.lastShot || Date.now()-e.lastShot>e.typeInfo.shootInterval){
-      let dxp=(player.x+player.w/2)-(e.x+e.w/2);
-      let dyp=(player.y+player.h/2)-(e.y+e.h/2);
-      let mag=Math.hypot(dxp,dyp);
-      enemyBullets.push({x:e.x+e.w/2-5,y:e.y+e.h/2-5,w:10,h:10,vx:dxp/mag*4,vy:dyp/mag*4});
-      e.lastShot=Date.now();
-    }
-
-    // Collision with player bullets
-    bullets.forEach((b,bi)=>{
-      if(b.x<b.x+b.w && b.x+b.w>e.x && b.y<b.y+b.h && b.y+b.h>e.y){
-        e.hp-=10;
-        bullets.splice(bi,1);
-        if(e.hp<=0){
-          coins+=1;
-          score+=e.typeInfo.points;
-          enemies.splice(ei,1);
-        }
-      }
-    });
-
-    // Collision with player
-    if(player.x<e.x+e.w && player.x+player.w>e.x &&
-       player.y<e.y+e.h && player.y+player.h>e.y){
-      player.hp-=20;
-      document.getElementById("hp").innerText=player.hp;
-      enemies.splice(ei,1);
-    }
-  });
-
-  // ---- COLLISION ENEMY BULLETS ----
-  enemyBullets.forEach((b,bi)=>{
-    if(player.x<b.x+b.w && player.x+player.w>b.x &&
-       player.y<b.y+b.h && player.y+player.h>b.y){
-      player.hp-=10;
-      document.getElementById("hp").innerText=player.hp;
-      enemyBullets.splice(bi,1);
-    }
-  });
-
-  // ---- CHECK GAME OVER ----
-  if(player.hp<=0){
-    gameState="gameover";
-    showGameOver();
-    return;
-  }
-
-  // ---- UPDATE UI ----
-  document.getElementById("score").innerText=score;
-  document.getElementById("coins").innerText=coins;
-  document.getElementById("wave").innerText=wave;
-
-  // ---- DRAW ----
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // Obstacles
-  ctx.fillStyle="#555";
-  obstacles.forEach(o=> ctx.fillRect(o.x,o.y,o.w,o.h));
-
-  // Player
-  ctx.fillStyle=player.skin;
-  ctx.fillRect(player.x,player.y,player.w,player.h);
-
-  // Bullets
-  ctx.fillStyle="yellow";
-  bullets.forEach(b=> ctx.fillRect(b.x,b.y,b.w,b.h));
-
-  // Enemy bullets
-  ctx.fillStyle="orange";
-  enemyBullets.forEach(b=> ctx.fillRect(b.x,b.y,b.w,b.h));
-
-  // Enemies
-  enemies.forEach(e=>{
-    ctx.fillStyle=e.typeInfo.color;
-    ctx.fillRect(e.x,e.y,e.w,e.h);
-  });
-
-  requestAnimationFrame(gameLoop);
 }
 
 // ===== PLAYER SHOOT =====
@@ -272,6 +121,7 @@ function shootPlayer(){
 
 // ===== GAME OVER =====
 function showGameOver(){
+  gameState="gameover";
   const menu=document.getElementById("menu");
   menu.innerHTML=`<h2>GAME OVER</h2>
   <p>Score: ${score} | Coins: ${coins} | Wave: ${wave}</p>
@@ -279,19 +129,19 @@ function showGameOver(){
   <button onclick="openShop()">Shop</button>`;
 }
 
-// ===== RESTART GAME =====
+// ===== RESTART =====
 function restartGame(){
   player.hp=player.maxHp;
   document.getElementById("hp").innerText=player.hp;
-  bullets=[]; enemyBullets=[]; enemies=[];
-  wave=1; spawnTimer=0; score=0;
+  bullets=[];enemyBullets=[];enemies=[];
+  wave=1;spawnTimer=0;score=0;
   gameState="playing";
   document.getElementById("menu").innerHTML="";
   gameLoop();
 }
 
 // ===== SHOP =====
-let shopSkins=["lime","blue","red","pink","gold"];
+let shopSkins=["Lime","Blue","Red","Pink","Gold"];
 function openShop(){
   gameState="shop";
   const menu=document.getElementById("menu");
@@ -302,20 +152,93 @@ function openShop(){
   html+=`<button onclick="closeShop()">Back</button>`;
   menu.innerHTML=html;
 }
-
 function buySkin(skin){
-  if(coins>=50){
-    coins-=50;
-    player.skin=skin;
-    document.getElementById("coins").innerText=coins;
-    alert("Skin purchased!");
-  }else alert("Not enough coins!");
+  if(coins>=50){coins-=50;player.skin=skin;document.getElementById("coins").innerText=coins;alert("Skin purchased!");}
+  else alert("Not enough coins!");
 }
+function closeShop(){document.getElementById("menu").innerHTML="";gameState="playing";gameLoop();}
 
-function closeShop(){
-  document.getElementById("menu").innerHTML="";
-  gameState="playing";
-  gameLoop();
+// ===== GAME LOOP =====
+function gameLoop(){
+  if(gameState!="playing") return;
+
+  // Move player
+  if(keys["ArrowUp"]) player.y-=player.speed;
+  if(keys["ArrowDown"]) player.y+=player.speed;
+  if(keys["ArrowLeft"]) player.x-=player.speed;
+  if(keys["ArrowRight"]) player.x+=player.speed;
+
+  // Shoot
+  if(player.shootDir.x!=0 || player.shootDir.y!=0) shootPlayer();
+
+  // Spawn enemies
+  spawnTimer++;
+  if(spawnTimer>200){spawnWave();spawnTimer=0;}
+
+  // Update bullets
+  bullets.forEach((b,i)=>{b.x+=b.vx;b.y+=b.vy;if(b.x<0||b.x>map.width||b.y<0||b.y>map.height) bullets.splice(i,1);});
+  enemyBullets.forEach((b,i)=>{b.x+=b.vx;b.y+=b.vy;if(b.x<0||b.x>map.width||b.y<0||b.y>map.height) enemyBullets.splice(i,1);});
+
+  // Update enemies
+  enemies.forEach((e,ei)=>{
+    let dx=(player.x+player.w/2)-(e.x+e.w/2);
+    let dy=(player.y+player.h/2)-(e.y+e.h/2);
+    let dist=Math.hypot(dx,dy);
+    e.x+=(dx/dist)*e.typeInfo.speed;
+    e.y+=(dy/dist)*e.typeInfo.speed;
+
+    if(!e.lastShot || Date.now()-e.lastShot>e.typeInfo.shootInterval){
+      let dxp=(player.x+player.w/2)-(e.x+e.w/2);
+      let dyp=(player.y+player.h/2)-(e.y+e.h/2);
+      let mag=Math.hypot(dxp,dyp);
+      enemyBullets.push({x:e.x+e.w/2-5,y:e.y+e.h/2-5,w:10,h:10,vx:dxp/mag*4,vy:dyp/mag*4});
+      e.lastShot=Date.now();
+    }
+
+    bullets.forEach((b,bi)=>{
+      if(b.x<b.x+b.w && b.x+b.w>e.x && b.y<b.y+b.h && b.y+b.h>e.y){
+        e.hp-=10; bullets.splice(bi,1);
+        if(e.hp<=0){coins+=1;score+=e.typeInfo.points;enemies.splice(ei,1);}
+      }
+    });
+
+    if(player.x<e.x+e.w && player.x+player.w>e.x && player.y<e.y+e.h && player.y+player.h>e.y){
+      player.hp-=20;document.getElementById("hp").innerText=player.hp;enemies.splice(ei,1);
+    }
+  });
+
+  // Enemy bullets hit player
+  enemyBullets.forEach((b,bi)=>{
+    if(player.x<b.x+b.w && player.x+player.w>b.x && player.y<b.y+b.h && player.y+player.h>b.y){
+      player.hp-=10;document.getElementById("hp").innerText=player.hp;enemyBullets.splice(bi,1);
+    }
+  });
+
+  // Game over
+  if(player.hp<=0){showGameOver();return;}
+
+  // UI
+  document.getElementById("score").innerText=score;
+  document.getElementById("coins").innerText=coins;
+  document.getElementById("wave").innerText=wave;
+
+  // Draw map + everything
+  drawMap(ctx);
+
+  // Player
+  ctx.fillStyle=player.skin;
+  ctx.fillRect(player.x,player.y,player.w,player.h);
+
+  // Bullets
+  ctx.fillStyle="yellow"; bullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+
+  // Enemy bullets
+  ctx.fillStyle="orange"; enemyBullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+
+  // Enemies
+  enemies.forEach(e=>{ctx.fillStyle=e.typeInfo.color;ctx.fillRect(e.x,e.y,e.w,e.h);});
+
+  requestAnimationFrame(gameLoop);
 }
 
 // ===== START =====
